@@ -15,7 +15,7 @@ STATUS: [PASSED or FAILED]
 REASON: <Concise summary or bulleted issues>
 """
 
-def analyze_changes(diff_text: str, model: str = "gemini-2.5-flash", max_retries: int = 3) -> dict:
+def analyze_changes(diff_text: str, model: str = "gemini-3.6-flash", max_retries: int = 3) -> dict:
     """Analyzes git diff with automatic retry on rate limits (429)."""
     if not diff_text.strip():
         return {"passed": True, "reason": "No code changes detected to review."}
