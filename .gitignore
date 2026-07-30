@@ -1,0 +1,19 @@
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+env/
+venv/
+
+# Environment Variables / Secrets
+.env
+
+# Build & Test output
+.pytest_cache/
+*.egg-info/
+dist/
+build/
