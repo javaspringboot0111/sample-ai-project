@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger("DevOpsPipeline")
 
 # Configuration Constants
-REPO_URL = os.getenv("REPO_URL", "https://github.com/your-org/sample-app.git")
+REPO_URL = os.getenv("REPO_URL", "https://github.com/your-org/sample-app.git/")
 BRANCH = os.getenv("BRANCH_NAME", "main")
 IMAGE_NAME = os.getenv("DOCKER_IMAGE", "your-registry/sample-app")
 DEPLOYMENT_NAME = os.getenv("K8S_DEPLOYMENT", "sample-app-deployment")

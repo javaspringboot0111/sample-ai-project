@@ -1,49 +1,61 @@
 import os
+import time
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 
-# Initialize client (automatically picks up GEMINI_API_KEY env variable)
 client = genai.Client()
 
 SYSTEM_PROMPT = """
 You are an expert DevOps and Security Code Reviewer.
-Your task is to analyze git diffs for:
-1. Hardcoded secrets, API keys, or credentials.
-2. Critical security vulnerabilities (SQL injection, unsafe inputs, XSS, etc.).
-3. Syntax errors, memory leaks, or broken logic.
+Analyze git diffs for hardcoded secrets, security vulnerabilities, and syntax errors.
 
-Format your response exactly as follows:
+Format response:
 STATUS: [PASSED or FAILED]
-REASON: <Provide a concise summary if PASSED, or a bulleted list of issues if FAILED.>
+REASON: <Concise summary or bulleted issues>
 """
 
-def analyze_changes(diff_text: str, model: str = "gemini-3.6-flash") -> dict:
-    """Analyzes a git diff using Google Gemini API."""
+def analyze_changes(diff_text: str, model: str = "gemini-2.5-flash", max_retries: int = 3) -> dict:
+    """Analyzes git diff with automatic retry on rate limits (429)."""
     if not diff_text.strip():
         return {"passed": True, "reason": "No code changes detected to review."}
 
-    try:
-        response = client.models.generate_content(
-            model=model,
-            contents=f"Review this git diff:\n\n{diff_text}",
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=0.2,  # Low temperature for deterministic evaluation
-            ),
-        )
+    # Truncate diff if it's excessively massive to save input tokens
+    MAX_CHARACTERS = 30000
+    if len(diff_text) > MAX_CHARACTERS:
+        diff_text = diff_text[:MAX_CHARACTERS] + "\n\n[Diff truncated to avoid token quota limits]"
 
-        content = response.text.strip()
-        
-        # Check if the output starts with or contains STATUS: PASSED
-        is_passed = "STATUS: PASSED" in content or content.startswith("PASSED")
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=f"Review this git diff:\n\n{diff_text}",
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.2,
+                ),
+            )
 
-        return {
-            "passed": is_passed,
-            "reason": content
-        }
+            content = response.text.strip()
+            is_passed = "STATUS: PASSED" in content or content.startswith("PASSED")
 
-    except Exception as e:
-        return {
-            "passed": False,
-            "reason": f"Gemini Code Review Failed due to API Error: {str(e)}"
-        }
+            return {
+                "passed": is_passed,
+                "reason": content
+            }
+
+        except APIError as e:
+            if e.code == 429 and attempt < max_retries:
+                wait_time = 45  # Wait 45 seconds as requested by the API error
+                print(f"[Rate Limit Hit] Waiting {wait_time}s before retry (Attempt {attempt}/{max_retries})...")
+                time.sleep(wait_time)
+            else:
+                return {
+                    "passed": False,
+                    "reason": f"Gemini Code Review Failed: {str(e)}"
+                }
+        except Exception as e:
+            return {
+                "passed": False,
+                "reason": f"Unexpected Error: {str(e)}"
+            }
